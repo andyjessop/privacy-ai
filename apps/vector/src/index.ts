@@ -6,29 +6,38 @@ const app = new Hono();
 
 // Initialize DB on startup
 // Note: In production, might want to do this separately or handle async startup better.
-initDb().catch(logger.error);
+// initDb().catch(logger.error); // Moved to bottom
+
+import { zValidator } from "@hono/zod-validator";
+import { 
+    InsertVectorsRequestSchema, 
+    UpsertVectorsRequestSchema,
+    QueryVectorsRequestSchema, 
+    DeleteVectorsRequestSchema, 
+    GetVectorsRequestSchema 
+} from "@ai-api/vector-types";
+
+// ... (initDb call commented out)
 
 // 1. INSERT / UPSERT
 // Cloudflare Vectorize: insert() and upsert()
 // We'll mimic this. Payload: { vectors: [ { id, values, metadata } ] }
 // Response: { count: number, ids: string[] }
 
-app.post("/insert", async (c) => {
+app.post("/insert", zValidator("json", InsertVectorsRequestSchema), async (c) => {
   try {
-    const { vectors } = await c.req.json() as { vectors: any[] };
-    if (!vectors || !Array.isArray(vectors) || vectors.length === 0) {
-      return c.json({ error: "Invalid payload" }, 400);
-    }
-
+    const { vectors } = c.req.valid("json");
+    
     // Insert logic
-    const insertedIds = [];
+    const insertedIds: string[] = [];
     for (const v of vectors) {
-      await sql`
+      const result = await sql`
         INSERT INTO vectors (id, values, metadata)
-        VALUES (${v.id}, ${JSON.stringify(v.values)}, ${v.metadata || {}})
+        VALUES (${v.id}, ${JSON.stringify(v.values)}, ${sql.json(v.metadata || {})})
         ON CONFLICT (id) DO NOTHING
+        RETURNING id
       `;
-      insertedIds.push(v.id);
+      if (result.length > 0) insertedIds.push(v.id!); // v.id is string
     }
 
     return c.json({ count: insertedIds.length, ids: insertedIds });
@@ -38,25 +47,23 @@ app.post("/insert", async (c) => {
   }
 });
 
-app.post("/upsert", async (c) => {
+app.post("/upsert", zValidator("json", UpsertVectorsRequestSchema), async (c) => {
   try {
-    const { vectors } = await c.req.json() as { vectors: any[] };
-    if (!vectors || !Array.isArray(vectors) || vectors.length === 0) {
-      return c.json({ error: "Invalid payload" }, 400);
-    }
+    const { vectors } = c.req.valid("json");
 
-    const upsertedIds = [];
+    const upsertedIds: string[] = [];
     for (const v of vectors) {
         // Prepare metadata as JSON object
         const metadata = v.metadata || {};
         
-      await sql`
+      const result = await sql`
         INSERT INTO vectors (id, values, metadata)
-        VALUES (${v.id}, ${JSON.stringify(v.values)}, ${metadata})
+        VALUES (${v.id}, ${JSON.stringify(v.values)}, ${sql.json(v.metadata || {})})
         ON CONFLICT (id) DO UPDATE
         SET values = EXCLUDED.values, metadata = EXCLUDED.metadata
+        RETURNING id
       `;
-      upsertedIds.push(v.id);
+      if (result.length > 0) upsertedIds.push(v.id!);
     }
 
     return c.json({ count: upsertedIds.length, ids: upsertedIds });
@@ -66,25 +73,20 @@ app.post("/upsert", async (c) => {
   }
 });
 
+
 // 2. QUERY
 // Payload: { vector: number[], topK?: number, returnMetadata?: boolean }
 // Response: { matches: [ { id, score, values?, metadata? } ] }
 
-app.post("/query", async (c) => {
+app.post("/query", zValidator("json", QueryVectorsRequestSchema), async (c) => {
   try {
-    const body = await c.req.json() as { vector: number[], topK?: number, returnValues?: boolean, returnMetadata?: boolean };
-    const { vector, topK = 5, returnValues = false, returnMetadata = false } = body;
+    const { vector, topK, returnValues, returnMetadata } = c.req.valid("json");
 
-    if (!vector || !Array.isArray(vector)) {
-      return c.json({ error: "Invalid vector" }, 400);
-    }
+     // topK defaults handled by Zod or below? Zod schema handles defaults.
+     // Default values in destructured assignment not strictly needed if Zod has .default().
+     // But `topK` in schema is optional with default.
 
-    // Cosine similarity in pgvector is standardly 1 - (a <=> b) if normalized, 
-    // or just use <=> operator for distance and sort ASC.
-    // Cloudflare returns "score" where higher is better (similarity).
-    // pgvector <=> operator returns cosine distance (0 is identical, 2 is opposite).
-    // So distinct = 1 - score => score = 1 - distance.
-    
+    // Cosine similarity...
     const results = await sql`
       SELECT 
         id, 
@@ -100,7 +102,7 @@ app.post("/query", async (c) => {
     const matches = results.map(r => ({
       id: r.id,
       score: r.score,
-      values: returnValues ? JSON.parse(r.values) : undefined, // pgvector returns string representation? likely.
+      values: returnValues ? JSON.parse(r.values) : undefined,
       metadata: returnMetadata ? r.metadata : undefined
     }));
 
@@ -112,15 +114,9 @@ app.post("/query", async (c) => {
 });
 
 // 3. DELETE
-// Payload: { ids: string[] }
-// Response: { count: number, ids: string[] }
-
-app.post("/deleteByIds", async (c) => {
+app.post("/deleteByIds", zValidator("json", DeleteVectorsRequestSchema), async (c) => {
     try {
-        const { ids } = await c.req.json() as { ids: string[] };
-         if (!ids || !Array.isArray(ids)) {
-            return c.json({ error: "Invalid ids" }, 400);
-        }
+        const { ids } = c.req.valid("json");
 
         const result = await sql`
             DELETE FROM vectors
@@ -138,14 +134,9 @@ app.post("/deleteByIds", async (c) => {
 
 
 // 4. GET BY ID
-// Payload: { ids: string[] } (This is usually not standard Vectorize, but GetByIds is common)
-// Cloudflare has `getByIds`
-app.post("/getByIds", async (c) => {
+app.post("/getByIds", zValidator("json", GetVectorsRequestSchema), async (c) => {
      try {
-        const { ids } = await c.req.json() as { ids: string[] };
-         if (!ids || !Array.isArray(ids)) {
-            return c.json({ error: "Invalid ids" }, 400);
-        }
+        const { ids } = c.req.valid("json");
         
         const results = await sql`
             SELECT id, values, metadata
@@ -153,7 +144,13 @@ app.post("/getByIds", async (c) => {
             WHERE id IN ${sql(ids)}
         `;
 
-        return c.json(results);
+        // Parse pgvector string format "[1,2,3]" if necessary
+        const parsedResults = results.map(r => ({
+            ...r,
+            values: typeof r.values === 'string' ? JSON.parse(r.values) : r.values
+        }));
+
+        return c.json(parsedResults);
 
     } catch (error) {
         logger.error("GetByIds error:", error);
@@ -163,9 +160,15 @@ app.post("/getByIds", async (c) => {
 
 const port = process.env.PORT || 3001;
 
+// Only start the server if this file is run directly
+if (import.meta.main) {
+    initDb().catch(logger.error);
+    logger.info(`Vector service running on port ${port}`);
+}
+
 export default {
     port,
     fetch: app.fetch,
 }
 
-logger.info(`Vector service running on port ${port}`);
+export { app };

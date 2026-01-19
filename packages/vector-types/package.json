@@ -1,0 +1,15 @@
+{
+    "name": "@ai-api/vector-types",
+    "version": "1.0.0",
+    "main": "src/index.ts",
+    "types": "src/index.ts",
+    "devDependencies": {
+        "bun-types": "latest"
+    },
+    "peerDependencies": {
+        "zod": "^3.0.0"
+    },
+    "dependencies": {
+        "zod": "^3.22.4"
+    }
+}

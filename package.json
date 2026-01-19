@@ -7,10 +7,10 @@
 		"api:lint": "bun run --cwd apps/api lint",
 		"api:start": "bun run --cwd apps/api start",
 		"api:test": "bun run --cwd apps/api test",
-		"vector:build": "bun run --cwd packages/vector build",
-		"vector:lint": "bun run --cwd packages/vector lint",
-		"vector:start": "bun run --cwd packages/vector start",
-		"vector:test": "bun run --cwd packages/vector test"
+		"vector:build": "bun run --cwd apps/vector build",
+		"vector:lint": "bun run --cwd apps/vector lint",
+		"vector:start": "bun run --cwd apps/vector start",
+		"vector:test": "bun run --cwd apps/vector test"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^1.8.2",

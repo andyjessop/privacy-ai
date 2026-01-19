@@ -7,18 +7,37 @@ export const sql = postgres(DATABASE_URL, {
   onnotice: () => {}, // Suppress notices
 });
 
-export async function initDb() {
+export async function initDb(retries = 5, delay = 1000) {
   logger.info("Initializing database...");
+  for (let i = 0; i < retries; i++) {
+      try {
+        // Enable pgvector extension
+        await sql`CREATE EXTENSION IF NOT EXISTS vector`;
+        break; // Success
+      } catch (error) {
+        if (i === retries - 1) {
+            logger.error("Failed to initialize database after retries:", error);
+            process.exit(1);
+        }
+        const code = (error as any).code;
+        if (code === "57P03" || code === "ECONNREFUSED") {
+            logger.warn(`Database not ready, retrying in ${delay}ms... (${i + 1}/${retries})`);
+            await new Promise(r => setTimeout(r, delay));
+            continue;
+        }
+        throw error;
+      }
+  }
+
   try {
-    // Enable pgvector extension
-    await sql`CREATE EXTENSION IF NOT EXISTS vector`;
+    const dim = parseInt(process.env.VECTOR_DIMENSION || "1536");
 
     // Create vectors table
     // Cloudflare Vectorize uses: id, values (vector), metadata (json)
     // We will use: id (text PK), values (vector), metadata (jsonb)
     // Dimension defaults to 1536 (OpenAI), but we should probably make it configurable or dynamic.
     // For now, let's assume 1536 as it's standard for embeddings.
-    const dim = parseInt(process.env.VECTOR_DIMENSION || "1536");
+
     
     // Check if we need to reset/re-init (optional, but good for dev iteration if schema changes)
     // For now, we will strictly create if not exists. 
