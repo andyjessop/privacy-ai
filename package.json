@@ -1,5 +1,5 @@
 {
-	"name": "bun-playground",
+	"name": "privacy-ai",
 	"license": "ISC",
 	"type": "module",
 	"scripts": {
@@ -16,14 +16,20 @@
 	"devDependencies": {
 		"@biomejs/biome": "^1.8.2",
 		"@types/bun": "^1.1.5",
-		"@types/node": "^20.12.14"
+		"@types/node": "^20.12.14",
+		"bun-types": "latest"
+	},
+	"dependencies": {
+		"@ai-sdk/mistral": "^1.1.0",
+		"@hono/zod-validator": "^0.1.11",
+		"ai": "^4.0.22",
+		"hono": "^4.0.0",
+		"postgres": "^3.4.4",
+		"typescript": "^5.8.3",
+		"zod": "^3.22.4"
 	},
 	"workspaces": [
 		"apps/*",
 		"packages/*"
-	],
-	"dependencies": {
-		"hono": "^4.11.4",
-		"typescript": "^5.8.3"
-	}
+	]
 }

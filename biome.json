@@ -5,10 +5,10 @@
 	},
 	"linter": {
 		"enabled": true,
-		  "rules": {
+		"rules": {
 			"recommended": true,
 			"suspicious": {
-			  	"noExplicitAny": "off"
+				"noExplicitAny": "off"
 			}
 		}
 	}

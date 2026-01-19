@@ -30,7 +30,8 @@ The project is structured as a Bun workspaces monorepo:
 ### **Prerequisites**
 - [Bun](https://bun.sh)
 - Docker Desktop
-- An environment with `MISTRAL_API_KEY` configured in `apps/api/.env.local`.
+- `.env.local` for development (`MISTRAL_API_KEY`).
+- `.env.test` for running integration tests (`MISTRAL_API_KEY` - distinct key optional).
 
 ### **Quick Start**
 
@@ -59,7 +60,7 @@ The project is structured as a Bun workspaces monorepo:
 
 ### **Testing**
 
-- **Run ALL tests via Turbo (if available) or manual:**
+- **Run ALL tests:**
   ```bash
   bun test
   ```
@@ -70,7 +71,7 @@ The project is structured as a Bun workspaces monorepo:
 
 ---
 
-## 🚀 Deployment (Proxmox / Production)
+## 🚀 Deployment
 
 To deploy the entire stack (API, Vector, Open Web UI, Postgres) using Docker Compose:
 

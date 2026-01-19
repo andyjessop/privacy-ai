@@ -4,15 +4,6 @@
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",
     "lint": "bun x @biomejs/biome check .",
     "start": "bun run ./src/index.ts",
-    "test": "bun test"
-  },
-  "dependencies": {
-    "postgres": "^3.4.4",
-    "zod": "^3.22.4",
-    "@hono/zod-validator": "^0.1.11",
-    "@ai-api/vector-types": "workspace:*"
-  },
-  "devDependencies": {
-    "bun-types": "latest"
+    "test": "bun test --env-file=../../.env.test"
   }
 }
