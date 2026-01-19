@@ -1,0 +1,57 @@
+name: CI/CD
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    services:
+      # Spin up Postgres for Vector Integration Tests
+      postgres:
+        image: pgvector/pgvector:pg15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ai_api_test
+        ports:
+          - 5432:5432
+        # Set health check to wait until postgres is ready
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run Linter
+        run: bun run lint
+
+      - name: Run Tests
+        env:
+          # Use the service container DB
+          DATABASE_URL: postgres://postgres:postgres@localhost:5432/ai_api_test
+          # Dummy key for API tests that rely on structure but mocks (or use real if provided)
+          # Note: Real Mistral calls in CI require MISTRAL_API_KEY secret
+          MISTRAL_API_KEY: ${{ secrets.MISTRAL_TEST_API_KEY }}
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ai_api_test
+          # Ensure vectors tests use small dimension if needed
+          VECTOR_DIMENSION: 1536
+        run: bun test
