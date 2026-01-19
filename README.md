@@ -31,7 +31,7 @@ The project is structured as a Bun workspaces monorepo:
 - [Bun](https://bun.sh)
 - Docker Desktop
 - `.env.local` for development (`MISTRAL_API_KEY`).
-- `.env.test` for running integration tests (`MISTRAL_API_KEY` - distinct key optional).
+- `.env.test` for running integration tests (`MISTRAL_API_KEY` - distinct key optional). Bun automatically loads the `.env.test` file, if present, when running tests.
 
 ### **Quick Start**
 

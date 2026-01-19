@@ -4,6 +4,6 @@
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",
     "lint": "bun x @biomejs/biome check .",
     "start": "bun run ./src/index.ts",
-    "test": "bun test --env-file=../../.env.test"
+    "test": "bun test"
   }
 }
