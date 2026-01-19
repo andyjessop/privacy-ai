@@ -57,16 +57,15 @@ const ChatCompletionSchema = z.object({
     max_tokens: z.number().optional().or(z.null()),
 });
 
+import { stream } from "hono/streaming";
 import { type CoreMessage } from "ai";
-
-import { streamText as honoStreamText } from "hono/streaming";
 
 // POST /v1/chat/completions
 app.post("/v1/chat/completions", zValidator("json", ChatCompletionSchema), async (c) => {
     const body = c.req.valid("json");
-    const { model, messages, stream, temperature, top_p, max_tokens } = body;
+    const { model, messages, stream: isStream, temperature, top_p, max_tokens } = body;
 
-    logger.info(`Chat request for model: ${model}, stream: ${stream}`);
+    logger.info(`Chat request for model: ${model}, stream: ${isStream}`);
 
     const apiKey = process.env.MISTRAL_API_KEY;
     if (!apiKey) {
@@ -76,18 +75,11 @@ app.post("/v1/chat/completions", zValidator("json", ChatCompletionSchema), async
 
     // Map Zod messages to AI SDK CoreMessage
     const coreMessages: CoreMessage[] = messages.map((m) => {
-        // Simple mapping. "tool" role might need special handling if we supported tools fully, 
-        // but for now user/assistant/system is main focus.
-        // AI SDK CoreMessage expects 'role' + 'content'.
         if (m.role === 'tool') {
-             // For now, map tool to specific structure or ignore if not supported in this simple pass
-             // OpenAI 'tool' role messages usually have `tool_call_id`.
-             // Our Zod schema is simplified.
-             // Let's assume text-only for now or cast strict role.
              return {
                  role: 'tool',
-                 content: [{ type: 'text', text: m.content }] as any, // Tool content usually array in AI SDK?
-                 toolCallId: 'unknown' // Placeholder if we received tool message without ID in simplified schema
+                 content: [{ type: 'text', text: m.content }] as any, 
+                 toolCallId: 'unknown' 
              } as unknown as CoreMessage; 
         }
         return {
@@ -96,13 +88,10 @@ app.post("/v1/chat/completions", zValidator("json", ChatCompletionSchema), async
         };
     });
 
-    // Map model names if necessary or use directly if valid provider model
-    // Using strict model passed by client
-    // @ai-sdk/mistral reads process.env.MISTRAL_API_KEY automatically.
     const targetModel = mistral(model);
 
     try {
-        if (stream) {
+        if (isStream) {
             // Streaming response (SSE)
             const result = streamText({
                 model: targetModel,
@@ -117,7 +106,7 @@ app.post("/v1/chat/completions", zValidator("json", ChatCompletionSchema), async
             c.header("Cache-Control", "no-cache");
             c.header("Connection", "keep-alive");
 
-            return honoStreamText(c, async (stream) => {
+            return stream(c, async (stream) => {
                 // OpenAI SSE Format:
                 // data: { ... JSON ... }
                 // data: [DONE]
@@ -201,6 +190,8 @@ app.post("/v1/chat/completions", zValidator("json", ChatCompletionSchema), async
 const port = process.env.PORT || 3000;
 
 logger.info(`API Service running on port ${port}`);
+
+export { app };
 
 export default {
     port,

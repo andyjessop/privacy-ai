@@ -4,7 +4,7 @@
     "build": "bun compile ./src/index.ts",
     "lint": "biome lint --write ./src",
     "start": "bun run --hot ./src/index.ts",
-    "test": "bun test"
+    "test": "bun test --env-file=.env.test"
   },
   "dependencies": {
     "hono": "^4.0.0",
