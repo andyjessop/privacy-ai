@@ -4,13 +4,11 @@ import {
 	beforeEach,
 	describe,
 	expect,
-	spyOn,
 	test,
 } from "bun:test";
-import {
-	DeleteResponse,
-	type InsertResponse,
-	type QueryResponse,
+import type {
+	InsertResponse,
+	QueryResponse,
 } from "../../../packages/vector-types/src";
 import { initDb, sql } from "./db";
 import { app } from "./index";
@@ -299,32 +297,32 @@ describe("Vector Service Integration Tests", () => {
 			// 1. Exact match (Score ~1.0)
 			const exact = matches.find((m) => m.id === "exact");
 			expect(exact).toBeDefined();
-			expect(Math.abs(exact!.score - 1.0)).toBeLessThan(0.0001);
+			expect(Math.abs((exact?.score ?? 0) - 1.0)).toBeLessThan(0.0001);
 
 			// 2. Near scaled (Score ~1.0) - Cosine similarity ignores magnitude
 			const nearScaled = matches.find((m) => m.id === "near_scaled");
 			expect(nearScaled).toBeDefined();
-			expect(Math.abs(nearScaled!.score - 1.0)).toBeLessThan(0.0001);
+			expect(Math.abs((nearScaled?.score ?? 0) - 1.0)).toBeLessThan(0.0001);
 
 			// 3. Close (Score near 0.99)
 			// Vector [0.99, 0.14, 0]. Norm ~= sqrt(0.99^2 + 0.14^2) ~= 1.0.
 			// Dot product = 0.99. Cosine ~= 0.99.
 			const close = matches.find((m) => m.id === "close");
 			expect(close).toBeDefined();
-			expect(close!.score).toBeGreaterThan(0.98);
-			expect(close!.score).toBeLessThan(1.0);
+			expect(close?.score).toBeGreaterThan(0.98);
+			expect(close?.score).toBeLessThan(1.0);
 
 			// 4. Orthogonal (Score ~0.0)
 			const orthogonal = matches.find((m) => m.id === "orthogonal");
 			expect(orthogonal).toBeDefined();
-			expect(Math.abs(orthogonal!.score)).toBeLessThan(0.0001);
+			expect(Math.abs(orthogonal?.score ?? 1)).toBeLessThan(0.0001);
 
 			// 5. Opposite (Score ~ -1.0)
 			const opposite = matches.find((m) => m.id === "opposite");
 			expect(opposite).toBeDefined();
 			// pgvector cosine distance can go up to 2. Our score = 1 - distance.
 			// distance = 2 -> score = -1.
-			expect(Math.abs(opposite!.score - -1.0)).toBeLessThan(0.0001);
+			expect(Math.abs((opposite?.score ?? 0) - -1.0)).toBeLessThan(0.0001);
 
 			// Verify Order: Exact/Scaled -> Close -> Random -> Orthogonal -> Opposite
 			const ids = matches.map((m) => m.id);
@@ -370,9 +368,10 @@ describe("Vector Service Integration Tests", () => {
 			expect(ids).toContain("c1");
 			expect(ids).toContain("c2");
 
-			const c1Score = matches.find((m) => m.id === "c1")!.score;
-			const c2Score = matches.find((m) => m.id === "c2")!.score;
-			expect(c1Score).toBeGreaterThan(c2Score);
+			const c1Score = matches.find((m) => m.id === "c1")?.score;
+			const c2Score = matches.find((m) => m.id === "c2")?.score;
+			expect(c2Score).toBeDefined();
+			expect(c1Score).toBeGreaterThan(c2Score ?? 0);
 		});
 	});
 });
