@@ -1,7 +1,19 @@
-import { describe, test, expect, beforeAll, beforeEach, afterAll, spyOn } from "bun:test";
+import {
+	afterAll,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	spyOn,
+	test,
+} from "bun:test";
+import {
+	DeleteResponse,
+	type InsertResponse,
+	type QueryResponse,
+} from "../../../packages/vector-types/src";
+import { initDb, sql } from "./db";
 import { app } from "./index";
-import { sql, initDb } from "./db";
-import { InsertResponse, QueryResponse, DeleteResponse } from "../../../packages/vector-types/src";
 
 // Force small dimension for tests
 process.env.VECTOR_DIMENSION = "3";
@@ -53,7 +65,9 @@ describe("Vector Service Integration Tests", () => {
 			// Pre-seed ID 1
 			await app.request("/insert", {
 				method: "POST",
-				body: JSON.stringify({ vectors: [{ id: "1", values: [0.1, 0.2, 0.3] }] }),
+				body: JSON.stringify({
+					vectors: [{ id: "1", values: [0.1, 0.2, 0.3] }],
+				}),
 				headers: { "Content-Type": "application/json" },
 			});
 
@@ -65,7 +79,7 @@ describe("Vector Service Integration Tests", () => {
 
 			expect(res.status).toBe(200);
 			// Should only return the NEW id
-			const body = await res.json() as InsertResponse;
+			const body = (await res.json()) as InsertResponse;
 			expect(body.count).toBe(1);
 			expect(body.ids).toEqual(["3"]);
 		});
@@ -74,7 +88,9 @@ describe("Vector Service Integration Tests", () => {
 			// Pre-seed ID 1
 			await app.request("/insert", {
 				method: "POST",
-				body: JSON.stringify({ vectors: [{ id: "1", values: [0.0, 0.0, 0.0] }] }), // Old value
+				body: JSON.stringify({
+					vectors: [{ id: "1", values: [0.0, 0.0, 0.0] }],
+				}), // Old value
 				headers: { "Content-Type": "application/json" },
 			});
 
@@ -115,8 +131,8 @@ describe("Vector Service Integration Tests", () => {
 						{ id: "1", values: [0, 0, 0] },
 						{ id: "2", values: [0.9, 0.8, 0.7] },
 						{ id: "3", values: [0.1, 0.1, 0.9] },
-						{ id: "4", values: [1, 1, 1] }
-					]
+						{ id: "4", values: [1, 1, 1] },
+					],
 				}),
 				headers: { "Content-Type": "application/json" },
 			});
@@ -127,7 +143,7 @@ describe("Vector Service Integration Tests", () => {
 				vector: [0.95, 0.95, 0.95],
 				topK: 2,
 				returnMetadata: true,
-				returnValues: true
+				returnValues: true,
 			};
 
 			const res = await app.request("/query", {
@@ -137,7 +153,7 @@ describe("Vector Service Integration Tests", () => {
 			});
 
 			expect(res.status).toBe(200);
-			const body = await res.json() as QueryResponse;
+			const body = (await res.json()) as QueryResponse;
 
 			expect(body.matches.length).toBe(2);
 
@@ -156,8 +172,8 @@ describe("Vector Service Integration Tests", () => {
 				body: JSON.stringify({
 					vectors: [
 						{ id: "1", values: [1, 1, 1] },
-						{ id: "3", values: [3, 3, 3] }
-					]
+						{ id: "3", values: [3, 3, 3] },
+					],
 				}),
 				headers: { "Content-Type": "application/json" },
 			});
@@ -179,7 +195,7 @@ describe("Vector Service Integration Tests", () => {
 				body: JSON.stringify({ ids: ["1"] }),
 				headers: { "Content-Type": "application/json" },
 			});
-			const checkBody = await check.json() as any[];
+			const checkBody = (await check.json()) as any[];
 			expect(checkBody.length).toBe(0);
 		});
 
@@ -204,9 +220,7 @@ describe("Vector Service Integration Tests", () => {
 		test("should handle validation errors (400)", async () => {
 			// Trigger validation error by passing null ID
 			const payload = {
-				vectors: [
-					{ id: null, values: [0, 0, 0] }
-				]
+				vectors: [{ id: null, values: [0, 0, 0] }],
 			};
 			const res = await app.request("/insert", {
 				method: "POST",
@@ -214,9 +228,9 @@ describe("Vector Service Integration Tests", () => {
 				headers: { "Content-Type": "application/json" },
 			});
 			expect(res.status).toBe(400);
-			const body = await res.json() as any;
+			const body = (await res.json()) as any;
 			// Zod error structure defaults to success: false, error: ... or similar?
-			// Hono zValidator defaults: result.error if hook not provided? 
+			// Hono zValidator defaults: result.error if hook not provided?
 			// It actually calls `c.json({ success: false, error: ... }, 400)` or similar?
 			// Let's check received body in next run/debug.
 			expect(body).toBeDefined();
@@ -228,12 +242,36 @@ describe("Vector Service Integration Tests", () => {
 			await sql`DELETE FROM vectors`;
 			// Insert a diverse set of vectors relative to a reference [1, 0, 0]
 			const testVectors = [
-				{ id: "exact", values: [1, 0, 0], metadata: { desc: "Same direction" } },
-				{ id: "near_scaled", values: [2, 0, 0], metadata: { desc: "Same direction, different magnitude" } }, // Should have same similarity as exact (score 1)
-				{ id: "close", values: [0.99, 0.14, 0], metadata: { desc: "10 degrees off" } }, // cos(10deg) ~= 0.98
-				{ id: "orthogonal", values: [0, 1, 0], metadata: { desc: "90 degrees off" } },
-				{ id: "opposite", values: [-1, 0, 0], metadata: { desc: "180 degrees off" } },
-				{ id: "random", values: [0.5, 0.5, 0.5], metadata: { desc: "Random 45deg-ish" } }
+				{
+					id: "exact",
+					values: [1, 0, 0],
+					metadata: { desc: "Same direction" },
+				},
+				{
+					id: "near_scaled",
+					values: [2, 0, 0],
+					metadata: { desc: "Same direction, different magnitude" },
+				}, // Should have same similarity as exact (score 1)
+				{
+					id: "close",
+					values: [0.99, 0.14, 0],
+					metadata: { desc: "10 degrees off" },
+				}, // cos(10deg) ~= 0.98
+				{
+					id: "orthogonal",
+					values: [0, 1, 0],
+					metadata: { desc: "90 degrees off" },
+				},
+				{
+					id: "opposite",
+					values: [-1, 0, 0],
+					metadata: { desc: "180 degrees off" },
+				},
+				{
+					id: "random",
+					values: [0.5, 0.5, 0.5],
+					metadata: { desc: "Random 45deg-ish" },
+				},
 			];
 
 			await app.request("/insert", {
@@ -250,46 +288,46 @@ describe("Vector Service Integration Tests", () => {
 				body: JSON.stringify({
 					vector: [1, 0, 0],
 					topK: 10,
-					returnMetadata: true
+					returnMetadata: true,
 				}),
 				headers: { "Content-Type": "application/json" },
 			});
 
-			const body = await res.json() as QueryResponse;
+			const body = (await res.json()) as QueryResponse;
 			const matches = body.matches;
 
 			// 1. Exact match (Score ~1.0)
-			const exact = matches.find(m => m.id === "exact");
+			const exact = matches.find((m) => m.id === "exact");
 			expect(exact).toBeDefined();
 			expect(Math.abs(exact!.score - 1.0)).toBeLessThan(0.0001);
 
 			// 2. Near scaled (Score ~1.0) - Cosine similarity ignores magnitude
-			const nearScaled = matches.find(m => m.id === "near_scaled");
+			const nearScaled = matches.find((m) => m.id === "near_scaled");
 			expect(nearScaled).toBeDefined();
 			expect(Math.abs(nearScaled!.score - 1.0)).toBeLessThan(0.0001);
 
 			// 3. Close (Score near 0.99)
-			// Vector [0.99, 0.14, 0]. Norm ~= sqrt(0.99^2 + 0.14^2) ~= 1.0. 
+			// Vector [0.99, 0.14, 0]. Norm ~= sqrt(0.99^2 + 0.14^2) ~= 1.0.
 			// Dot product = 0.99. Cosine ~= 0.99.
-			const close = matches.find(m => m.id === "close");
+			const close = matches.find((m) => m.id === "close");
 			expect(close).toBeDefined();
 			expect(close!.score).toBeGreaterThan(0.98);
 			expect(close!.score).toBeLessThan(1.0);
 
 			// 4. Orthogonal (Score ~0.0)
-			const orthogonal = matches.find(m => m.id === "orthogonal");
+			const orthogonal = matches.find((m) => m.id === "orthogonal");
 			expect(orthogonal).toBeDefined();
 			expect(Math.abs(orthogonal!.score)).toBeLessThan(0.0001);
 
 			// 5. Opposite (Score ~ -1.0)
-			const opposite = matches.find(m => m.id === "opposite");
+			const opposite = matches.find((m) => m.id === "opposite");
 			expect(opposite).toBeDefined();
 			// pgvector cosine distance can go up to 2. Our score = 1 - distance.
 			// distance = 2 -> score = -1.
-			expect(Math.abs(opposite!.score - (-1.0))).toBeLessThan(0.0001);
+			expect(Math.abs(opposite!.score - -1.0)).toBeLessThan(0.0001);
 
 			// Verify Order: Exact/Scaled -> Close -> Random -> Orthogonal -> Opposite
-			const ids = matches.map(m => m.id);
+			const ids = matches.map((m) => m.id);
 			expect(ids.indexOf("exact")).toBeLessThan(ids.indexOf("close"));
 			expect(ids.indexOf("near_scaled")).toBeLessThan(ids.indexOf("close")); // Tie with exact
 			expect(ids.indexOf("close")).toBeLessThan(ids.indexOf("orthogonal"));
@@ -300,8 +338,8 @@ describe("Vector Service Integration Tests", () => {
 			// Add a cluster of points near [0, 1, 0]
 			const cluster = [
 				{ id: "c1", values: [0.01, 1.0, 0], metadata: { group: "y-axis" } }, // Very close
-				{ id: "c2", values: [0.1, 1.0, 0], metadata: { group: "y-axis" } },  // Close
-				{ id: "c3", values: [0.5, 1.0, 0], metadata: { group: "y-axis" } },  // Further
+				{ id: "c2", values: [0.1, 1.0, 0], metadata: { group: "y-axis" } }, // Close
+				{ id: "c3", values: [0.5, 1.0, 0], metadata: { group: "y-axis" } }, // Further
 			];
 			await app.request("/insert", {
 				method: "POST",
@@ -314,11 +352,11 @@ describe("Vector Service Integration Tests", () => {
 				method: "POST",
 				body: JSON.stringify({
 					vector: [0, 1, 0],
-					topK: 3
+					topK: 3,
 				}),
 				headers: { "Content-Type": "application/json" },
 			});
-			const body = await res.json() as QueryResponse;
+			const body = (await res.json()) as QueryResponse;
 			const matches = body.matches;
 
 			// Should find c1, c2, c3 in that order (ignoring previous 'orthogonal' which is exact match)
@@ -327,13 +365,13 @@ describe("Vector Service Integration Tests", () => {
 			// let's check top 3 excluding the exact 'orthogonal' one if it's there
 			// The result should contain 'orthogonal' at top, then c1, then c2.
 
-			const ids = matches.map(m => m.id);
+			const ids = matches.map((m) => m.id);
 			// Ensure c1 is returned and better score than c2
 			expect(ids).toContain("c1");
 			expect(ids).toContain("c2");
 
-			const c1Score = matches.find(m => m.id === "c1")!.score;
-			const c2Score = matches.find(m => m.id === "c2")!.score;
+			const c1Score = matches.find((m) => m.id === "c1")!.score;
+			const c2Score = matches.find((m) => m.id === "c2")!.score;
 			expect(c1Score).toBeGreaterThan(c2Score);
 		});
 	});

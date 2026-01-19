@@ -1,14 +1,15 @@
-import { describe, test, expect, beforeAll } from "bun:test";
+import { beforeAll, describe, expect, test } from "bun:test";
 import { app } from "./index";
 
 describe("API Service Integration Tests", () => {
-
 	// Check if API key is configured, otherwise warn/skip?
 	// User authorized real calls, so we expect it to be present.
 	const apiKey = process.env.MISTRAL_API_KEY;
 
 	if (!apiKey) {
-		console.warn("Skipping integration tests because MISTRAL_API_KEY is missing.");
+		console.warn(
+			"Skipping integration tests because MISTRAL_API_KEY is missing.",
+		);
 		return;
 	}
 
@@ -25,14 +26,16 @@ describe("API Service Integration Tests", () => {
 	test("POST /v1/chat/completions (Non-Streaming) should return text", async () => {
 		const payload = {
 			model: "mistral-small-latest",
-			messages: [{ role: "user", content: "What is 2+2? Answer with just the number." }],
-			stream: false
+			messages: [
+				{ role: "user", content: "What is 2+2? Answer with just the number." },
+			],
+			stream: false,
 		};
 
 		const res = await app.request("/v1/chat/completions", {
 			method: "POST",
 			body: JSON.stringify(payload),
-			headers: { "Content-Type": "application/json" }
+			headers: { "Content-Type": "application/json" },
 		});
 
 		expect(res.status).toBe(200);
@@ -47,13 +50,13 @@ describe("API Service Integration Tests", () => {
 		const payload = {
 			model: "mistral-small-latest",
 			messages: [{ role: "user", content: "Count to 3." }],
-			stream: true
+			stream: true,
 		};
 
 		const res = await app.request("/v1/chat/completions", {
 			method: "POST",
 			body: JSON.stringify(payload),
-			headers: { "Content-Type": "application/json" }
+			headers: { "Content-Type": "application/json" },
 		});
 
 		expect(res.status).toBe(200);
@@ -67,8 +70,10 @@ describe("API Service Integration Tests", () => {
 		let done = false;
 		let output = "";
 
+		if (!reader) throw new Error("No reader");
+
 		while (!done) {
-			const { value, done: isDone } = await reader!.read();
+			const { value, done: isDone } = await reader.read();
 			if (isDone) {
 				done = true;
 				break;

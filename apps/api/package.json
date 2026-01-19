@@ -2,7 +2,8 @@
   "name": "api",
   "scripts": {
     "build": "bun compile ./src/index.ts",
-    "lint": "biome lint --write ./src",
+    "format": "biome format --write ./src",
+    "lint": "biome lint --apply ./src",
     "start": "bun run --hot ./src/index.ts",
     "test": "bun test"
   }

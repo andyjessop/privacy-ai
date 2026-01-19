@@ -4,6 +4,7 @@
 	"type": "module",
 	"scripts": {
 		"lint": "bun run --cwd apps/api lint && bun run --cwd apps/vector lint",
+		"format": "bun run --cwd apps/api format && bun run --cwd apps/vector format",
 		"api:build": "bun run --cwd apps/api build",
 		"api:lint": "bun run --cwd apps/api lint",
 		"api:start": "bun run --cwd apps/api start",
@@ -14,13 +15,13 @@
 		"vector:test": "bun run --cwd apps/vector test"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^1.8.2",
 		"@types/bun": "^1.1.5",
 		"@types/node": "^20.12.14",
 		"bun-types": "latest"
 	},
 	"dependencies": {
 		"@ai-sdk/mistral": "^1.1.0",
+		"@biomejs/biome": "^2.3.11",
 		"@hono/zod-validator": "^0.1.11",
 		"ai": "^4.0.22",
 		"hono": "^4.0.0",

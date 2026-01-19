@@ -2,7 +2,8 @@
   "name": "vector",
   "scripts": {
     "build": "bun build ./src/index.ts --outdir ./dist --target bun",
-    "lint": "bun x @biomejs/biome check .",
+    "format": "biome format --write ./src",
+    "lint": "biome lint --apply ./src",
     "start": "bun run ./src/index.ts",
     "test": "bun test"
   }
