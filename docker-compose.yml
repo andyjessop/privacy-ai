@@ -12,11 +12,14 @@ services:
       - app_network
 
   api:
-    image: api:latest
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
     restart: always
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ai_api_prod}
       PORT: 3000
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
     ports:
       - "3000:3000"
     depends_on:
@@ -25,11 +28,14 @@ services:
       - app_network
 
   vector:
-    image: vector:latest
+    build:
+      context: .
+      dockerfile: apps/vector/Dockerfile
     restart: always
     environment:
       DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ai_api_prod}
       PORT: 3001
+      VECTOR_DIMENSION: ${VECTOR_DIMENSION:-1536}
     ports:
       - "3001:3001"
     depends_on:
@@ -37,8 +43,26 @@ services:
     networks:
       - app_network
 
+  open-web-ui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENAI_API_BASE_URL=http://api:3000/v1
+      - OPENAI_API_KEY=dummy
+      # If you want to use the bundled Ollama, or disable it:
+      # - ENABLE_OLLAMA_API=False
+    volumes:
+      - open_web_ui_data:/app/backend/data
+    depends_on:
+      - api
+    networks:
+      - app_network
+
 volumes:
   postgres_data_prod:
+  open_web_ui_data:
 
 
 networks:
