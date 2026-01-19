@@ -54,3 +54,48 @@ Pi gives Redux clear conventions and context; Redux gives Pi a perfect **audit t
 **Pi** is a UI architecture designed not just for humans, but for the next generation of developers: machines that can read logs, plan actions, test assumptions, and write code better with every loop.
 
 Pi is not only how we build applications; it is how we build **applications that can build themselves**.
+
+---
+
+## 🛠️ Development
+
+### **Prerequisites**
+- [Bun](https://bun.sh)
+- Docker Desktop
+- An environment with `MISTRAL_API_KEY` configured in `apps/api/.env.local`.
+
+### **Quick Start**
+
+1. **Install Dependencies**
+   ```bash
+   bun install
+   ```
+
+2. **Start the API Service**
+   Runs the API on `http://localhost:3000`.
+   ```bash
+   bun dev
+   ```
+
+3. **Start Open Web UI (Client)**
+   Runs the Web UI on `http://localhost:8080`, connected to your local API.
+   ```bash
+   docker compose -f docker-compose.dev.yml up -d open-web-ui
+   ```
+
+4. **Access the Application**
+   Open http://localhost:8080 in your browser.
+   - Create an admin account (first time).
+   - Select a Mistral model.
+   - Start chatting.
+
+### **Testing**
+
+- **Run ALL tests via Turbo (if available) or manual:**
+  ```bash
+  bun test
+  ```
+- **Run API Integration Tests:**
+  ```bash
+  bun --cwd apps/api test
+  ```

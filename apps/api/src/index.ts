@@ -55,7 +55,8 @@ const ChatCompletionSchema = z.object({
     temperature: z.number().optional(),
     top_p: z.number().optional(),
     max_tokens: z.number().optional().or(z.null()),
-});
+    metadata: z.record(z.any()).optional()
+}).passthrough();
 
 import { stream } from "hono/streaming";
 import { type CoreMessage } from "ai";
@@ -63,6 +64,14 @@ import { type CoreMessage } from "ai";
 // POST /v1/chat/completions
 app.post("/v1/chat/completions", zValidator("json", ChatCompletionSchema), async (c) => {
     const body = c.req.valid("json");
+    /* e.g.
+    "x-openwebui-chat-id": "d66482b0-900e-46e6-94db-3a099d3d2395",
+    "x-openwebui-user-email": "andrewdjessop@protonmail.com",
+    "x-openwebui-user-id": "9b6d1053-a226-470f-a5fb-317b6eb7575d",
+    "x-openwebui-user-name": "Andy Jessop",
+    "x-openwebui-user-role": "admin",
+    */
+    const headers = c.req.header();
     const { model, messages, stream: isStream, temperature, top_p, max_tokens } = body;
 
     logger.info(`Chat request for model: ${model}, stream: ${isStream}`);

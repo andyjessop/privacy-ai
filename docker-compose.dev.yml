@@ -11,5 +11,22 @@ services:
     volumes:
       - postgres_data_dev:/var/lib/postgresql/data
 
+  open-web-ui:
+    image: ghcr.io/open-webui/open-webui:main
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      - OPENAI_API_BASE_URL=http://host.docker.internal:3000/v1
+      - OPENAI_API_KEY=dummy
+      - ENABLE_FORWARD_USER_INFO_HEADERS=True
+      # If you want to use the bundled Ollama, or disable it:
+      # - ENABLE_OLLAMA_API=False
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - open_web_ui_data:/app/backend/data
+
 volumes:
   postgres_data_dev:
+  open_web_ui_data:
