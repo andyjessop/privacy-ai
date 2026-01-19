@@ -5,5 +5,17 @@
     "lint": "biome lint --write ./src",
     "start": "bun run --hot ./src/index.ts",
     "test": "bun test"
+  },
+  "dependencies": {
+    "hono": "^4.0.0",
+    "ai": "^4.0.22",
+    "@ai-sdk/mistral": "^1.1.0",
+    "zod": "^3.22.4",
+    "@hono/zod-validator": "^0.1.11",
+    "@ai-api/logger": "workspace:*"
+  },
+  "devDependencies": {
+    "bun-types": "latest",
+    "@biomejs/biome": "1.5.3"
   }
 }
