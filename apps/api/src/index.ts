@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { logger } from "@ai-api/logger/src/logger";
+import { logger } from "../../../packages/logger/src/logger";
 import { zValidator } from "@hono/zod-validator";
 import { z } from "zod";
 import { streamText } from "ai";
@@ -85,11 +85,11 @@ app.post("/v1/chat/completions", zValidator("json", ChatCompletionSchema), async
     // Map Zod messages to AI SDK CoreMessage
     const coreMessages: CoreMessage[] = messages.map((m) => {
         if (m.role === 'tool') {
-             return {
-                 role: 'tool',
-                 content: [{ type: 'text', text: m.content }] as any, 
-                 toolCallId: 'unknown' 
-             } as unknown as CoreMessage; 
+            return {
+                role: 'tool',
+                content: [{ type: 'text', text: m.content }] as any,
+                toolCallId: 'unknown'
+            } as unknown as CoreMessage;
         }
         return {
             role: m.role as "system" | "user" | "assistant",
@@ -110,7 +110,7 @@ app.post("/v1/chat/completions", zValidator("json", ChatCompletionSchema), async
                 maxTokens: max_tokens || undefined,
             });
 
-             // Set headers for SSE
+            // Set headers for SSE
             c.header("Content-Type", "text/event-stream");
             c.header("Cache-Control", "no-cache");
             c.header("Connection", "keep-alive");
@@ -119,11 +119,11 @@ app.post("/v1/chat/completions", zValidator("json", ChatCompletionSchema), async
                 // OpenAI SSE Format:
                 // data: { ... JSON ... }
                 // data: [DONE]
-                
+
                 const id = `chatcmpl-${Date.now()}`;
                 const created = Math.floor(Date.now() / 1000);
 
-                 for await (const part of result.fullStream) {
+                for await (const part of result.fullStream) {
                     if (part.type === 'text-delta') {
                         const chunk = {
                             id,
@@ -140,7 +140,7 @@ app.post("/v1/chat/completions", zValidator("json", ChatCompletionSchema), async
                         };
                         await stream.write(`data: ${JSON.stringify(chunk)}\n\n`);
                     } else if (part.type === 'finish') {
-                         const chunk = {
+                        const chunk = {
                             id,
                             object: "chat.completion.chunk",
                             created,
@@ -153,41 +153,41 @@ app.post("/v1/chat/completions", zValidator("json", ChatCompletionSchema), async
                                 },
                             ],
                         };
-                         await stream.write(`data: ${JSON.stringify(chunk)}\n\n`);
+                        await stream.write(`data: ${JSON.stringify(chunk)}\n\n`);
                     }
                     // Handle tool calls / usage etc if needed
                 }
-                
+
                 await stream.write("data: [DONE]\n\n");
             });
 
         } else {
-             const { generateText } = await import("ai");
-             const result = await generateText({
-                 model: targetModel,
-                 messages: coreMessages,
-                 temperature,
-                 topP: top_p,
-                 maxTokens: max_tokens || undefined,
-             });
+            const { generateText } = await import("ai");
+            const result = await generateText({
+                model: targetModel,
+                messages: coreMessages,
+                temperature,
+                topP: top_p,
+                maxTokens: max_tokens || undefined,
+            });
 
-             return c.json({
-                 id: `chatcmpl-${Date.now()}`,
-                 object: "chat.completion",
-                 created: Math.floor(Date.now() / 1000),
-                 model,
-                 choices: [
-                     {
-                         index: 0,
-                         message: {
-                             role: "assistant",
-                             content: result.text,
-                         },
-                         finish_reason: result.finishReason,
-                     }
-                 ],
-                 usage: result.usage 
-             });
+            return c.json({
+                id: `chatcmpl-${Date.now()}`,
+                object: "chat.completion",
+                created: Math.floor(Date.now() / 1000),
+                model,
+                choices: [
+                    {
+                        index: 0,
+                        message: {
+                            role: "assistant",
+                            content: result.text,
+                        },
+                        finish_reason: result.finishReason,
+                    }
+                ],
+                usage: result.usage
+            });
         }
 
     } catch (error) {

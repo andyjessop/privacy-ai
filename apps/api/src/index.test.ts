@@ -6,7 +6,7 @@ describe("API Service Integration Tests", () => {
 	// Check if API key is configured, otherwise warn/skip?
 	// User authorized real calls, so we expect it to be present.
 	const apiKey = process.env.MISTRAL_API_KEY;
-	console.log(apiKey);
+
 	if (!apiKey) {
 		console.warn("Skipping integration tests because MISTRAL_API_KEY is missing.");
 		return;

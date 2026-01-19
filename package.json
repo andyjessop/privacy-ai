@@ -3,7 +3,6 @@
 	"license": "ISC",
 	"type": "module",
 	"scripts": {
-		"dev": "bun run --cwd apps/api start",
 		"api:build": "bun run --cwd apps/api build",
 		"api:lint": "bun run --cwd apps/api lint",
 		"api:start": "bun run --cwd apps/api start",
