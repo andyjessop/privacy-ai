@@ -5,5 +5,8 @@
     "lint": "biome lint --write ./src",
     "start": "bun run --hot ./src/index.ts",
     "test": "bun test"
+  },
+  "dependencies": {
+    "postgres": "^3.4.8"
   }
 }

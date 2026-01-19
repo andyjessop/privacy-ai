@@ -1,8 +1,6 @@
-
-
 services:
   postgres:
-    image: postgres:15-alpine
+    image: pgvector/pgvector:pg15
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -41,6 +39,7 @@ services:
 
 volumes:
   postgres_data_prod:
+
 
 networks:
   app_network:
