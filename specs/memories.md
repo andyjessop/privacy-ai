@@ -14,12 +14,22 @@ To support many-to-many relationships (e.g., shared memories) and clean separati
 - `id` (TEXT, PK): Unique identifier for the memory vector.
 - `values` (VECTOR[1536]): The embedding.
 - `metadata` (JSONB): Stores the actual memory content (text), timestamp, and other metadata.
-    - `{ "content": "User is a software engineer using Bun.", "type": "memory", "created_at": "..." }`
+    - `{ "content": "User is a software engineer using Bun.", "type": "memory", "created_at": "ISO-8601 Timestamp" }`
 
 **Table: `users_vectors` (New)**
 - `user_id` (TEXT): The user identifier (from OpenWebUI header `x-openwebui-user-id`).
 - `vector_id` (TEXT): Foreign key to `vectors.id`.
 - `PRIMARY KEY (user_id, vector_id)`
+
+**Table: `memory_updates` (New)** To handle Conflict Resolution, we need to track which memories superseded others. This table is **Audit-only**.
+- `id` (UUID, PK): Unique record identifier.
+- `user_id` (TEXT NOT NULL): The user whose memory was updated. required to disambiguate shared vectors.
+- `old_vector_id` (TEXT): The ID of the deprecated/contradicted memory.
+- `new_vector_id` (TEXT): The ID of the updated memory.
+- `reason` (TEXT): Why it was changed (e.g., "User switched from Bun to Node").
+- `created_at` (TIMESTAMP): When the update occurred.
+
+> **Note**: This table is **NOT** consulted during retrieval. Retrieval relies solely on the active links in `users_vectors`. This table exists purely for audit, debugging, and offline analysis of memory evolution.
 
 ### 2.2 Models
 - **Embeddings**: `mistral-embed` (via Mistral SDK).
@@ -60,13 +70,14 @@ When `POST /v1/chat/completions` is called:
     - Prompt: "Extract new, concise, permanent facts about the user from this message. Ignore transient info."
     - Schema: `{ memories: string[] }`
 2.  **Deduplicate**:
-    - Compare extracted memories against currently retrieved memories (from Step 1).
-    - (Optionally) Semantic check against DB if high precision needed.
+    - Compare extracted memories against currently retrieved memories (from Step 1). LLM Prompt: "Does Fact A ('User uses Node') contradict Fact B ('User uses Bun')? If yes, mark Fact B for replacement."
+    - Semantic check against DB.
 3.  **Store**:
     - For each new memory:
         - Generate Embedding (`mistral-embed`).
         - Insert into `vectors`.
         - Insert into `users_vectors` linking to current `$user_id`.
+        - If a contradiction is found, delete the old link in `users_vectors` for that user and record the change in `memory_updates`. This preserves the data in vectors (in case other users share it) but removes it from the specific user's context.
 
 ## 4. Implementation Details
 
@@ -88,7 +99,84 @@ When `POST /v1/chat/completions` is called:
     - *Mitigation*: Vector store naturally allows duplicates, but exact string match check prevents literal dupes.
 - **User ID Absence**: If no user ID header?
     - *Policy*: Disable memory feature for that request (Anonymous mode).
+- **The "Flip-Flop"**: If a user says "I like coffee" then "I hate coffee" in the same hour.
+    - Mitigation: Timestamp check. Only allow replacement if the new message is strictly newer than the stored `created_at`.
+
+### 4.4 Memory Formation Prompt (Draft)
+
+We will use `generateObject` with the following system prompt to analyze user messages.
+
+**System Prompt:**
+```text
+You are an expert memory archivist. Your goal is to extract new, permanent facts, preferences, or meaningful details about the user that should be remembered for future conversations.
+
+Input Context:
+- Existing Memories: {existing_memories_list}
+- User Message: {user_message}
+
+Instructions:
+1. Analyze the User Message for factual statements about the user's life, work, preferences, or state.
+2. Ignore transient information (e.g., "Hello", "How are you?", "Write a poem", "I am testing this").
+3. Ignore facts that are already present in "Existing Memories".
+4. Extract facts as concise, standalone sentences (e.g., "User is a software engineer using Bun", "User prefers TypeScript").
+5. Return a JSON object with a list of strings called 'memories'.
+6. If no new information is found, return an empty list.
+```
+
+### 4.5 Cold Start Optimization
+
+To avoid the "empty brain" feel for new users, we implement Static Global Memories. Global Bootstrap: A set of "Community/System" memories (e.g., general documentation facts about the backend) can be linked to all users by default if their personal memory count is <5.
+
+### 4.6 Conflict Resolution Prompt
+
+Compare the New Fact to the Existing Memory.
+Existing: {existing_memory}
+New: {new_fact}
+
+Identify:
+1. Is the New Fact a direct contradiction? (e.g., "I live in NY" vs "I moved to LA")
+2. Is the New Fact a more specific version? (e.g., "I like JS" vs "I like TypeScript")
+3. Is it unrelated?
+
+Action: If (1) or (2), return { "action": "replace", "target_id": "{id}" }. Otherwise return { "action": "add" }.
+
+#### Conflict Resolution Table
+
+| Scenario | Logic | Result |
+| :--- | :--- | :--- |
+| **Direct Contradiction** | New fact replaces old fact. | Old `vector_id` unlinked; New inserted. |
+| **Redundancy** | New fact is semantically identical. | Ignore new fact; No DB write. |
+| **Refinement** | New fact adds detail to old fact. | Replace old with more descriptive version. |
+| **New Information** | No relation to existing data. | Standard insert. |
+
+### 4.7 Observability & Metrics
+
+Given the opacity of LLM-driven extraction, extensive logging is critical.
+
+**Structured Logs (JSON)**
+- `memory_decision`: Logged for every background process execution.
+  ```json
+  {
+    "event": "memory_decision",
+    "user_id": "...",
+    "input_message_length": 150,
+    "extracted_count": 2,
+    "decisions": [
+      { "fact": "User likes Bun", "action": "add" },
+      { "fact": "User moved to Node", "action": "replace", "target_id": "123" },
+      { "fact": "User is a dev", "action": "ignore", "reason": "redundant" }
+    ]
+  }
+  ```
+
+**Metrics (Counters)**
+- `memory_total_count`: Total active memories per user.
+- `memory_replacement_rate`: Rate of conflict resolutions vs new additions.
+- `memory_dedup_rate`: Frequency of redundant fact extraction (efficiency metric).
+- `retrieval_hit_rate`: How often retrieved memories are actually used (requires feedback loop, future work).
 
 ## 5. Future Considerations
 - **Shared Memories**: `users_vectors` allows multiple users to look at the same `vector_id`.
-- **Memory Decay**: Add `last_accessed` to `users_vectors` to slowly "forget" unused memories.
+- **Memory Decay**: Since all memories have a `created_at` timestamp, we can implement a decay function in the retrieval score.
+    - `final_score = vector_score * decay(current_time - created_at)`
+    - This allows old memories to fade unless they are reinforced or extremely relevant.
