@@ -180,3 +180,25 @@ Given the opacity of LLM-driven extraction, extensive logging is critical.
 - **Memory Decay**: Since all memories have a `created_at` timestamp, we can implement a decay function in the retrieval score.
     - `final_score = vector_score * decay(current_time - created_at)`
     - This allows old memories to fade unless they are reinforced or extremely relevant.
+
+## 6. Testing Strategy
+
+To ensure reliability, we will implement the following tests with as close to 100% coverage as possible:
+
+### 6.1 Vector Layer (`apps/vector`)
+- **Unit Tests**:
+    -   Verify database interactions (CRUD on `vectors`, `users_vectors`).
+    -   Verify correct handling of `userId` in queries.
+    -   Verify conflict resolution logic (if implemented in DB layer or mocked).
+
+### 6.2 API Layer (`apps/api`)
+- **Integration Tests**:
+    -   Verify the full flow: Retrieval -> Chat -> Memory Formation.
+    -   Create a file of pre-generated embeddings. To generate this file, make real calls to `mistral-embed` so that the vector dimensions are correct when running the test
+    -   **Setup**:
+        -   Insert pre-generated embeddings into the DB (simulating existing memories).
+    -   **Assertions**:
+        -   Call `POST /v1/chat/completions`. Makes calls to the real `mistral-embed` endpoint.
+        -   Assert that the response contains a `memories` array (indicating retrieval usage).
+        -   Assert that the "Memory Formation" background process logs (or DB side-effects) occur correctly (e.g., new memory added to DB).
+        -   Ensure assertions are deterministic (check for existence/count, not exact vector scores).
