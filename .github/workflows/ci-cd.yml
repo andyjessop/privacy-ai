@@ -56,5 +56,5 @@ jobs:
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: ai_api_test
           # Ensure vectors tests use small dimension if needed
-          VECTOR_DIMENSION: 1536
+          VECTOR_DIMENSION: 1024
         run: bun test
