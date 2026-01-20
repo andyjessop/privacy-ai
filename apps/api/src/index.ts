@@ -62,6 +62,9 @@ const ChatCompletionSchema = z
 
 import { type CoreMessage } from "ai";
 import { stream } from "hono/streaming";
+import { mistralEmbed } from "./utils/embedding";
+import { vectorService } from "./services/vector-service";
+import { memoryService } from "./services/memory-service";
 
 // POST /v1/chat/completions
 app.post(
@@ -69,14 +72,9 @@ app.post(
     zValidator("json", ChatCompletionSchema),
     async (c) => {
         const body = c.req.valid("json");
-        /* e.g.
-            "x-openwebui-chat-id": "d66482b0-900e-46e6-94db-3a099d3d2395",
-            "x-openwebui-user-email": "andrewdjessop@protonmail.com",
-            "x-openwebui-user-id": "9b6d1053-a226-470f-a5fb-317b6eb7575d",
-            "x-openwebui-user-name": "Andy Jessop",
-            "x-openwebui-user-role": "admin",
-        */
         const headers = c.req.header();
+        const userId = headers["x-openwebui-user-id"];
+
         const {
             model,
             messages,
@@ -98,20 +96,80 @@ app.post(
             return c.json({ error: "Server misconfiguration: API key missing" }, 500);
         }
 
-        // Map Zod messages to AI SDK CoreMessage
+        let injectedSystemContext = "";
+
+        // RAG Step 1: Retrieval
+        const lastUserMessage = messages.slice().reverse().find(m => m.role === "user")?.content;
+
+        if (userId && lastUserMessage) {
+            try {
+                logger.info(`[RAG] Retrieving memories for user ${userId}`);
+                const embedding = await mistralEmbed(lastUserMessage);
+                const results = await vectorService.query(embedding, { userId, topK: 10, returnMetadata: true });
+
+                const relevantMemories = results.matches
+                    .filter(m => m.score > 0.8)
+                    .map(m => m.metadata?.content)
+                    .filter(Boolean);
+
+                if (relevantMemories.length > 0) {
+                    logger.info(`[RAG] Found ${relevantMemories.length} relevant memories.`);
+                    injectedSystemContext = `\n\nExisting Memories (Facts about the user):\n${relevantMemories.map(m => `- ${m}`).join("\n")}\n`;
+                }
+            } catch (error) {
+                logger.error("[RAG] Retrieval failed:", error);
+                // Continue without memories on error
+            }
+        }
+
+        // Map Zod messages to AI SDK CoreMessage and Inject Context
         const coreMessages: CoreMessage[] = messages.map((m) => {
             if (m.role === "tool") {
                 return {
                     role: "tool",
-                    content: [{ type: "text", text: m.content }] as any,
+                    content: [{ type: "tool-result", toolCallId: "unknown", result: m.content }],
                     toolCallId: "unknown",
-                } as unknown as CoreMessage;
+                } as any as CoreMessage;
             }
+
+            const content = m.content;
+            // Inject into the first system message, or prepend a system message if none exists
+            // But here we are mapping existing messages. 
+            // We should append to the LAST system message, or Insert a new one?
+            // Usually, System Prompt is the first message.
+            // Let's handle injection after mapping.
+
             return {
                 role: m.role as "system" | "user" | "assistant",
-                content: m.content,
+                content: content,
             };
         });
+
+        if (injectedSystemContext) {
+            const systemMsgIndex = coreMessages.findIndex(m => m.role === "system");
+            if (systemMsgIndex >= 0) {
+                // Append to existing system message
+                const existingContent = coreMessages[systemMsgIndex].content as string;
+                coreMessages[systemMsgIndex] = {
+                    role: "system",
+                    content: existingContent + injectedSystemContext
+                };
+            } else {
+                // Prepend new system message
+                coreMessages.unshift({
+                    role: "system",
+                    content: `You are a helpful AI assistant.${injectedSystemContext}`
+                });
+            }
+        }
+
+        // Trigger Memory Formation in Background
+        if (userId && lastUserMessage) {
+            // Fire-and-forget
+            memoryService.processMemories(userId, lastUserMessage, coreMessages).catch(err => {
+                logger.error("Background memory processing failed:", err);
+            });
+        }
 
         const targetModel = mistral(model);
 

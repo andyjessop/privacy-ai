@@ -374,4 +374,178 @@ describe("Vector Service Integration Tests", () => {
 			expect(c1Score).toBeGreaterThan(c2Score ?? 0);
 		});
 	});
+
+	describe("User Scoped Operations", () => {
+		beforeEach(async () => {
+			await sql`DELETE FROM users_vectors`;
+			await sql`DELETE FROM vectors`;
+			await sql`DELETE FROM memory_updates`;
+		});
+
+		test("should scope vectors to user", async () => {
+			// Insert for user 1
+			await app.request("/insert", {
+				method: "POST",
+				body: JSON.stringify({
+					vectors: [{ id: "u1_mem", values: [1, 1, 1] }],
+					userId: "user_1",
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+
+			// Insert for user 2
+			await app.request("/insert", {
+				method: "POST",
+				body: JSON.stringify({
+					vectors: [{ id: "u2_mem", values: [1, 1, 1] }],
+					userId: "user_2",
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+
+			// Insert global (no user) - should be invisible to user scoped queries?
+			// Actually, currently our code says: IF userId provided, we JOIN.
+			// So if I query with userId "user_1", I should ONLY see linked vectors.
+			await app.request("/insert", {
+				method: "POST",
+				body: JSON.stringify({
+					vectors: [{ id: "global_mem", values: [1, 1, 1] }],
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+
+			// Query for User 1
+			const res1 = await app.request("/query", {
+				method: "POST",
+				body: JSON.stringify({
+					vector: [1, 1, 1],
+					userId: "user_1",
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+			const body1 = await res1.json() as QueryResponse;
+			expect(body1.matches.length).toBe(1);
+			expect(body1.matches[0].id).toBe("u1_mem");
+
+			// Query for User 2
+			const res2 = await app.request("/query", {
+				method: "POST",
+				body: JSON.stringify({
+					vector: [1, 1, 1],
+					userId: "user_2",
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+			const body2 = await res2.json() as QueryResponse;
+			expect(body2.matches.length).toBe(1);
+			expect(body2.matches[0].id).toBe("u2_mem");
+
+			// Query Global (no userId)
+			// Should find ALL (user1, user2, global) because all are in vectors table
+			const res3 = await app.request("/query", {
+				method: "POST",
+				body: JSON.stringify({
+					vector: [1, 1, 1],
+					topK: 10
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+			const body3 = await res3.json() as QueryResponse;
+			// logic: u1, u2, global all match
+			expect(body3.matches.length).toBe(3);
+		});
+
+		test("should share vectors but scope visibility", async () => {
+			// Scenario: Two users have semantically identical memories (or same fact).
+			// Logic: Vector ID must be unique.
+			// If we use random IDs, they are different rows.
+			// If they share the SAME vector ID (e.g. hash of content), then they share the row.
+
+			// Let's verify shared vector ID
+			await app.request("/insert", {
+				method: "POST",
+				body: JSON.stringify({
+					vectors: [{ id: "shared_fact", values: [0, 0, 0] }],
+					userId: "user_1",
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+
+			await app.request("/insert", {
+				method: "POST",
+				body: JSON.stringify({
+					vectors: [{ id: "shared_fact", values: [0, 0, 0] }],
+					userId: "user_2",
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+
+			// Should be 1 vector row, 2 user links
+			const vecCount = await sql`SELECT count(*) FROM vectors`;
+			expect(vecCount[0].count).toBe("1"); // string from postgres.js
+
+			const linkCount = await sql`SELECT count(*) FROM users_vectors`;
+			expect(linkCount[0].count).toBe("2");
+		});
+
+		test("should delete memory for specific user", async () => {
+			// Setup: Shared vector
+			await app.request("/insert", {
+				method: "POST",
+				body: JSON.stringify({
+					vectors: [{ id: "shared_fact", values: [0, 0, 0] }],
+					userId: "user_1",
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+			await app.request("/insert", {
+				method: "POST",
+				body: JSON.stringify({
+					vectors: [{ id: "shared_fact", values: [0, 0, 0] }],
+					userId: "user_2",
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+
+			// Delete for User 1
+			const res = await app.request("/delete-memory", {
+				method: "POST",
+				body: JSON.stringify({
+					userId: "user_1",
+					vectorId: "shared_fact",
+					reason: "forgotten"
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+			expect(res.status).toBe(200);
+
+			// Verify User 1 cannot see it
+			const res1 = await app.request("/query", {
+				method: "POST",
+				body: JSON.stringify({
+					vector: [0, 0, 0],
+					userId: "user_1",
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+			expect((await res1.json() as QueryResponse).matches.length).toBe(0);
+
+			// Verify User 2 CAN see it
+			const res2 = await app.request("/query", {
+				method: "POST",
+				body: JSON.stringify({
+					vector: [0, 0, 0],
+					userId: "user_2",
+				}),
+				headers: { "Content-Type": "application/json" },
+			});
+			expect((await res2.json() as QueryResponse).matches.length).toBe(1);
+
+			// Verify Audit Log
+			const logs = await sql`SELECT * FROM memory_updates WHERE user_id = 'user_1'`;
+			expect(logs.length).toBe(1);
+			expect(logs[0].reason).toBe("forgotten");
+			expect(logs[0].old_vector_id).toBe("shared_fact");
+		});
+	});
 });

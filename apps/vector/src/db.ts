@@ -53,7 +53,22 @@ export async function initDb(retries = 5, delay = 1000) {
         id TEXT PRIMARY KEY,
         values vector(${dim}),
         metadata JSONB
-      )
+      );
+
+      CREATE TABLE IF NOT EXISTS users_vectors (
+        user_id TEXT NOT NULL,
+        vector_id TEXT NOT NULL REFERENCES vectors(id) ON DELETE CASCADE,
+        PRIMARY KEY (user_id, vector_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS memory_updates (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        user_id TEXT NOT NULL,
+        old_vector_id TEXT,
+        new_vector_id TEXT,
+        reason TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      );
     `);
 
     // Index for faster queries (HNSW)

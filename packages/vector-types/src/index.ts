@@ -11,7 +11,7 @@ export const VectorSchema = z.object({
 export type Vector = z.infer<typeof VectorSchema>;
 
 export const VectorMatchSchema = VectorSchema.extend({
-    score: z.number(),
+  score: z.number(),
 });
 
 export type VectorMatch = z.infer<typeof VectorMatchSchema>;
@@ -20,6 +20,7 @@ export type VectorMatch = z.infer<typeof VectorMatchSchema>;
 
 export const InsertVectorsRequestSchema = z.object({
   vectors: z.array(VectorSchema),
+  userId: z.string().optional(),
 });
 
 export type InsertVectorsRequest = z.infer<typeof InsertVectorsRequestSchema>;
@@ -32,18 +33,27 @@ export const QueryVectorsRequestSchema = z.object({
   topK: z.number().optional().default(5),
   returnValues: z.boolean().optional().default(false),
   returnMetadata: z.boolean().optional().default(false),
+  userId: z.string().optional(),
 });
 
 export type QueryVectorsRequest = z.infer<typeof QueryVectorsRequestSchema>;
 
 export const DeleteVectorsRequestSchema = z.object({
-    ids: z.array(z.string()),
+  ids: z.array(z.string()),
 });
 
 export type DeleteVectorsRequest = z.infer<typeof DeleteVectorsRequestSchema>;
 
+export const DeleteMemoryRequestSchema = z.object({
+  userId: z.string(),
+  vectorId: z.string(),
+  reason: z.string().optional(),
+});
+
+export type DeleteMemoryRequest = z.infer<typeof DeleteMemoryRequestSchema>;
+
 export const GetVectorsRequestSchema = z.object({
-    ids: z.array(z.string()),
+  ids: z.array(z.string()),
 });
 
 export type GetVectorsRequest = z.infer<typeof GetVectorsRequestSchema>;
@@ -51,8 +61,8 @@ export type GetVectorsRequest = z.infer<typeof GetVectorsRequestSchema>;
 // --- Response Schemas ---
 
 export const InsertResponseSchema = z.object({
-    count: z.number(),
-    ids: z.array(z.string()),
+  count: z.number(),
+  ids: z.array(z.string()),
 });
 export type InsertResponse = z.infer<typeof InsertResponseSchema>;
 
@@ -60,9 +70,15 @@ export const UpsertResponseSchema = InsertResponseSchema;
 export type UpsertResponse = z.infer<typeof UpsertResponseSchema>;
 
 export const QueryResponseSchema = z.object({
-    matches: z.array(VectorMatchSchema),
+  matches: z.array(VectorMatchSchema),
 });
 export type QueryResponse = z.infer<typeof QueryResponseSchema>;
 
 export const DeleteResponseSchema = InsertResponseSchema;
 export type DeleteResponse = z.infer<typeof DeleteResponseSchema>;
+
+export const DeleteMemoryResponseSchema = z.object({
+  success: z.boolean(),
+  deleted: z.boolean(),
+});
+export type DeleteMemoryResponse = z.infer<typeof DeleteMemoryResponseSchema>;

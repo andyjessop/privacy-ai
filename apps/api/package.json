@@ -1,7 +1,6 @@
 {
   "name": "api",
   "scripts": {
-    "build": "bun compile ./src/index.ts",
     "format": "biome format --write ./src",
     "lint": "biome lint ./src",
     "start": "bun run --hot ./src/index.ts",
