@@ -1,6 +1,6 @@
 # AI API Stack
 
-A complete, self-hosted AI suite designed to provide OpenAI-compatible chat endpoints, vector search capabilities, and a polished user interface.
+A privacy-focused AI suite that self-hosts your data, vector search, and user interface, while securely integrating with trusted privacy-preserving AI providers like Mistral.
 
 This monorepo contains the infrastructure to run your own AI platform using **Mistral AI** models and **PGVector** for embeddings, fronted by the powerful **Open Web UI**.
 
