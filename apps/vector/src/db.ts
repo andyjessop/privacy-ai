@@ -34,7 +34,7 @@ export async function initDb(retries = 5, delay = 1000) {
   }
 
   try {
-    const dim = Number.parseInt(process.env.VECTOR_DIMENSION || "1536", 10);
+    const dim = Number.parseInt(process.env.VECTOR_DIMENSION || "1024", 10);
 
     // Create vectors table
     // Cloudflare Vectorize uses: id, values (vector), metadata (json)

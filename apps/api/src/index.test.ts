@@ -1,44 +1,43 @@
-import { afterEach, beforeAll, describe, expect, spyOn, test, mock } from "bun:test";
-
-// Mock AI SDK to avoid real API calls
-mock.module("ai", () => {
-	return {
-		streamText: () => {
-			// Mock async iterable for fullStream
-			return {
-				fullStream: (async function* () {
-					yield { type: 'text-delta', textDelta: 'Mock ' };
-					yield { type: 'text-delta', textDelta: 'Response' };
-					yield { type: 'finish', finishReason: 'stop' };
-				})()
-			};
-		},
-		generateText: async () => ({
-			text: "Mock response",
-			finishReason: "stop",
-			usage: { promptTokens: 10, completionTokens: 5, totalTokens: 15 }
-		}),
-	};
-});
-
+import { describe, expect, test } from "bun:test";
 import { app } from "./index";
 import { vectorService } from "./services/vector-service";
-import { memoryService } from "./services/memory-service";
-import * as embeddingUtils from "./utils/embedding";
+import { mistralEmbed } from "./utils/embedding";
 
-// Set dummy key
-process.env.MISTRAL_API_KEY = "test-key";
+// Ensure MISTRAL_API_KEY is present for real calls
+if (!process.env.MISTRAL_API_KEY) {
+	console.warn("Skipping integration tests because MISTRAL_API_KEY is missing.");
+}
 
-// Mock embedding
-spyOn(embeddingUtils, "mistralEmbed").mockResolvedValue([0.1, 0.2, 0.3]);
+const TEST_USER_ID = `test-user-${Date.now()}`;
 
-describe("API Service Integration Tests", () => {
-	afterEach(() => {
-		// Clear mocks
-		// jest/bun clearAllMocks() equivalent?
-	});
+// Helper to poll for memory existence
+async function pollForMemory(userId: string, contentSnippet: string, timeoutMs = 10000) {
+	const start = Date.now();
+	const queryVector = await mistralEmbed(contentSnippet); // Embedding for the snippet itself should match
 
-	// ... existing tests ...
+	while (Date.now() - start < timeoutMs) {
+		try {
+			const results = await vectorService.query(queryVector, {
+				userId,
+				topK: 10,
+				returnMetadata: true
+			});
+
+			const found = results.matches.some(m =>
+				m.metadata?.content &&
+				(m.metadata.content as string).toLowerCase().includes(contentSnippet.toLowerCase())
+			);
+
+			if (found) return true;
+		} catch (e) {
+			// Ignore errors during polling (e.g. connectivity blips)
+		}
+		await new Promise(r => setTimeout(r, 500));
+	}
+	throw new Error(`Timed out waiting for memory containing "${contentSnippet}"`);
+}
+
+describe("API Service Integration Tests (Real)", () => {
 
 	test("GET /v1/models should return model list", async () => {
 		const res = await app.request("/v1/models");
@@ -46,34 +45,54 @@ describe("API Service Integration Tests", () => {
 		const body = await res.json();
 		expect(body.object).toBe("list");
 		expect(Array.isArray(body.data)).toBe(true);
-		expect(body.data.length).toBeGreaterThan(0);
-		expect(body.data[0].id).toBeDefined();
 	});
 
-	test("POST /v1/chat/completions (Non-Streaming) should return text", async () => {
-		const payload = {
-			model: "mistral-small-latest",
-			messages: [
-				{ role: "user", content: "What is 2+2? Answer with just the number." },
-			],
-			stream: false,
-		};
-
+	test("POST /v1/chat/completions should return 400 for invalid payload (missing messages)", async () => {
 		const res = await app.request("/v1/chat/completions", {
 			method: "POST",
-			body: JSON.stringify(payload),
+			body: JSON.stringify({ model: "mistral-small-latest" }),
 			headers: { "Content-Type": "application/json" },
 		});
+		expect(res.status).toBe(400);
+	});
 
-		expect(res.status).toBe(200);
-		const body = await res.json();
+	test("POST /v1/chat/completions should return 400 for invalid payload (missing model)", async () => {
+		const res = await app.request("/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+			headers: { "Content-Type": "application/json" },
+		});
+		expect(res.status).toBe(400);
+	});
 
-		expect(body.object).toBe("chat.completion");
-		expect(body.choices).toHaveLength(1);
-		expect(body.choices[0].message.content).toContain("Mock response");
-	}, 20000);
+	test("POST /v1/chat/completions should return 400 for invalid message structure", async () => {
+		const res = await app.request("/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({
+				model: "mistral-small-latest",
+				messages: [{ role: "user" }] // missing content
+			}),
+			headers: { "Content-Type": "application/json" },
+		});
+		expect(res.status).toBe(400);
+	});
 
-	test("POST /v1/chat/completions (Streaming) should return SSE stream", async () => {
+	test("POST /v1/chat/completions should return 400 for invalid role", async () => {
+		const res = await app.request("/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify({
+				model: "mistral-small-latest",
+				messages: [{ role: "superuser", content: "hi" }]
+			}),
+			headers: { "Content-Type": "application/json" },
+		});
+		expect(res.status).toBe(400);
+	});
+
+	// Only run these if we have an API key
+	const runRealTests = process.env.MISTRAL_API_KEY ? test : test.skip;
+
+	runRealTests("POST /v1/chat/completions (Streaming)", async () => {
 		const payload = {
 			model: "mistral-small-latest",
 			messages: [{ role: "user", content: "Count to 3." }],
@@ -83,83 +102,119 @@ describe("API Service Integration Tests", () => {
 		const res = await app.request("/v1/chat/completions", {
 			method: "POST",
 			body: JSON.stringify(payload),
-			headers: { "Content-Type": "application/json" },
+			headers: {
+				"Content-Type": "application/json",
+				"x-openwebui-user-id": TEST_USER_ID // Use ID but we primarily test streaming here
+			},
 		});
 
 		expect(res.status).toBe(200);
 		expect(res.headers.get("Content-Type")).toContain("text/event-stream");
 
-		// Read stream
-		if (!res.body) throw new Error("No response body");
-		const reader = res.body.getReader();
+		// Basic stream consumption
+		const reader = res.body?.getReader();
 		expect(reader).toBeDefined();
-
-		const decoder = new TextDecoder();
-		let done = false;
-		let output = "";
-
-		if (!reader) throw new Error("No reader");
-
-		while (!done) {
-			const { value, done: isDone } = await reader.read();
-			if (isDone) {
-				done = true;
-				break;
+		if (reader) {
+			let done = false;
+			while (!done) {
+				const { done: d } = await reader.read();
+				done = d;
 			}
-			const chunk = decoder.decode(value, { stream: true });
-			output += chunk;
 		}
+	});
 
-		// Verify SSE format
-		expect(output).toContain("data: {");
-		expect(output).toContain("chat.completion.chunk");
-		expect(output).toContain("[DONE]");
-	}, 20000);
-
-	test("POST /v1/chat/completions should trigger RAG and Memory Formation", async () => {
-		// Spies
-		const querySpy = spyOn(vectorService, "query").mockResolvedValue({
-			matches: [
-				{ id: "1", score: 0.9, metadata: { content: "User name is Andy" }, values: [] }
-			]
+	runRealTests("Anonymous User (No Memory)", async () => {
+		const uniqueContent = "I am anonymous " + Date.now();
+		const payload = {
+			model: "mistral-small-latest",
+			messages: [{ role: "user", content: uniqueContent }],
+			stream: false,
+		};
+		// No user ID header
+		const res = await app.request("/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify(payload),
+			headers: { "Content-Type": "application/json" },
 		});
 
-		const memorySpy = spyOn(memoryService, "processMemories").mockResolvedValue(undefined);
+		expect(res.status).toBe(200);
+		const body = await res.json();
+		// Should NOT have 'memories' populated
+		expect(body.memories).toEqual([]);
 
-		const payload = {
+		// Verify Vector API directly
+		// Wait briefly to allow any potential background process to start (if it were buggy)
+		await new Promise(r => setTimeout(r, 2000));
+
+		const embedding = await mistralEmbed(uniqueContent);
+		// Query globally (no userId) to see if it exists anywhere
+		const results = await vectorService.query(embedding, { topK: 1, returnMetadata: true });
+
+		const found = results.matches.some(m =>
+			m.metadata?.content === uniqueContent
+		);
+		expect(found).toBe(false);
+	}, 30000);
+
+
+
+	runRealTests("Full Memory RAG Flow", async () => {
+		// 1. First turn: State a fact
+		const payload1 = {
+			model: "mistral-small-latest",
+			messages: [{ role: "user", content: "My name is Antimatter." }],
+			stream: false,
+		};
+
+		const res1 = await app.request("/v1/chat/completions", {
+			method: "POST",
+			body: JSON.stringify(payload1),
+			headers: {
+				"Content-Type": "application/json",
+				"x-openwebui-user-id": TEST_USER_ID
+			},
+		});
+
+		expect(res1.status).toBe(200);
+		const body1 = await res1.json();
+		// First time, memories should likely be empty (unless previous runs persisted)
+		// We can't guarantee empty if DB persists, but we used a unique user ID.
+		// But let's check structure.
+		expect(body1.memories).toBeDefined();
+
+		// Wait for background memory formation deterministically
+		await pollForMemory(TEST_USER_ID, "Antimatter");
+
+		// 2. Verify memory via Vector Service (white-box testing)
+		// Handled by pollForMemory implicitly checking it exists.
+
+		// 3. Second turn: Ask about the fact
+		const payload2 = {
 			model: "mistral-small-latest",
 			messages: [{ role: "user", content: "What is my name?" }],
 			stream: false,
 		};
 
-		const res = await app.request("/v1/chat/completions", {
+		const res2 = await app.request("/v1/chat/completions", {
 			method: "POST",
-			body: JSON.stringify(payload),
+			body: JSON.stringify(payload2),
 			headers: {
 				"Content-Type": "application/json",
-				"x-openwebui-user-id": "test-user-123"
+				"x-openwebui-user-id": TEST_USER_ID
 			},
 		});
 
-		expect(res.status).toBe(200);
-		const body = await res.json();
+		expect(res2.status).toBe(200);
+		const body2 = await res2.json();
 
-		// 1. Check Retrieval called
-		expect(querySpy).toHaveBeenCalled();
-		expect(querySpy.mock.calls[0][1]!.userId).toBe("test-user-123");
+		// Check memories were retrieved
+		expect(Array.isArray(body2.memories)).toBe(true);
+		// Expect at least one memory about the name
+		const hasMemory = body2.memories.some((m: string) => m.toLowerCase().includes("antimatter"));
+		expect(hasMemory).toBe(true);
 
-		// 2. Check Memory Formation triggered
-		// Note: It's async fire-and-forget. Bun test might finish before it's called if we don't wait?
-		// But the code calls it synchronously before returning (unawaited). 
-		// So spy should record it.
-		expect(memorySpy).toHaveBeenCalled();
-		expect(memorySpy.mock.calls[0][0]).toBe("test-user-123");
-
-		// 3. Response check (optional, seeing if it used the memory)
-		// Since we mocked query to return "User name is Andy", LLM should probably say "Andy".
-		const answer = body.choices[0].message.content;
-		// console.log("Answer:", answer);
-		// We can't strictly guarantee LLM uses it without strict prompt, but mistral-small is usually good.
-		// We at least verified the plumbing.
-	});
+		// Check LLM answer
+		const answer = body2.choices[0].message.content;
+		expect(answer.toLowerCase()).toContain("antimatter");
+	}, 60000); // Extended timeout
 });

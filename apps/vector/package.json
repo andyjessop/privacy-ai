@@ -4,6 +4,7 @@
     "format": "biome format --write ./src",
     "lint": "biome lint ./src",
     "start": "bun run ./src/index.ts",
+    "db:reset": "bun run ./scripts/reset.ts",
     "test": "bun test"
   }
 }

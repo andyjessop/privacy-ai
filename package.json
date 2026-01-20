@@ -10,7 +10,8 @@
 		"api:test": "bun run --cwd apps/api test",
 		"vector:lint": "bun run --cwd apps/vector lint",
 		"vector:start": "bun run --cwd apps/vector start",
-		"vector:test": "bun run --cwd apps/vector test"
+		"vector:test": "bun run --cwd apps/vector test",
+		"test:all": "bun run scripts/test-workflow.ts"
 	},
 	"devDependencies": {
 		"@types/bun": "^1.1.5",

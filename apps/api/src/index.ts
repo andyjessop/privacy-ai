@@ -49,7 +49,24 @@ const ChatCompletionSchema = z
         messages: z.array(
             z.object({
                 role: z.enum(["system", "user", "assistant", "tool"]),
-                content: z.string(),
+                content: z.string().nullable().optional(),
+                tool_call_id: z.string().optional(),
+                tool_calls: z.array(z.any()).optional(),
+            }).superRefine((data, ctx) => {
+                if ((data.role === "user" || data.role === "system") && (!data.content || data.content.trim() === "")) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        message: "Content is required for user and system messages",
+                        path: ["content"],
+                    });
+                }
+                if (data.role === "tool" && !data.tool_call_id) {
+                    ctx.addIssue({
+                        code: z.ZodIssueCode.custom,
+                        message: "tool_call_id is required for tool messages",
+                        path: ["tool_call_id"],
+                    });
+                }
             }),
         ),
         stream: z.boolean().optional(),
@@ -101,14 +118,16 @@ app.post(
         // RAG Step 1: Retrieval
         const lastUserMessage = messages.slice().reverse().find(m => m.role === "user")?.content;
 
+        let relevantMemories: string[] = [];
+
         if (userId && lastUserMessage) {
             try {
                 logger.info(`[RAG] Retrieving memories for user ${userId}`);
                 const embedding = await mistralEmbed(lastUserMessage);
                 const results = await vectorService.query(embedding, { userId, topK: 10, returnMetadata: true });
 
-                const relevantMemories = results.matches
-                    .filter(m => m.score > 0.8)
+                relevantMemories = results.matches
+                    .filter(m => m.score > 0.65)
                     .map(m => m.metadata?.content)
                     .filter(Boolean);
 
@@ -127,21 +146,36 @@ app.post(
             if (m.role === "tool") {
                 return {
                     role: "tool",
-                    content: [{ type: "tool-result", toolCallId: "unknown", result: m.content }],
-                    toolCallId: "unknown",
+                    content: [{ type: "tool-result", toolCallId: m.tool_call_id || "unknown", result: m.content || "" }],
                 } as any as CoreMessage;
             }
 
-            const content = m.content;
-            // Inject into the first system message, or prepend a system message if none exists
-            // But here we are mapping existing messages. 
-            // We should append to the LAST system message, or Insert a new one?
-            // Usually, System Prompt is the first message.
-            // Let's handle injection after mapping.
+            if (m.role === "assistant" && (m.tool_calls || m.content)) {
+                const content: any[] = [];
+                if (m.content) {
+                    content.push({ type: "text", text: m.content });
+                }
+                if (m.tool_calls) {
+                    m.tool_calls.forEach((tc: any) => {
+                        content.push({
+                            type: "tool-call",
+                            toolCallId: tc.id,
+                            toolName: tc.function.name,
+                            args: typeof tc.function.arguments === "string"
+                                ? JSON.parse(tc.function.arguments)
+                                : tc.function.arguments
+                        });
+                    });
+                }
+                return {
+                    role: "assistant",
+                    content,
+                } as any as CoreMessage;
+            }
 
             return {
                 role: m.role as "system" | "user" | "assistant",
-                content: content,
+                content: m.content || "",
             };
         });
 
@@ -261,6 +295,7 @@ app.post(
                     },
                 ],
                 usage: result.usage,
+                memories: relevantMemories,
             });
         } catch (error) {
             logger.error("Chat completion error:", error);

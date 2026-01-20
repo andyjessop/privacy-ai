@@ -47,7 +47,7 @@ Instructions:
 4. Return a JSON object with a list of strings called 'memories'.
 5. If no new information is found, return an empty list.`,
                     },
-                    ...contextMessages,
+                    ...contextMessages.filter(m => m.role !== "tool"),
                     { role: "user", content: userMessage },
                 ],
             });
