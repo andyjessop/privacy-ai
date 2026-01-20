@@ -15,6 +15,13 @@ This guide explains how to set up the **Deployment Monitor** on your server (Deb
   - Storage: 20GB+ SSD space for images and database.
 - **Git**: Installed on the host.
 - **Network**: Outbound internet access to pull Docker images and git repo.
+- **API Keys & Tokens**:
+  - **Mistral API Key**: Required for the main application (`MISTRAL_API_KEY`). Get one from [Mistral AI Console](https://console.mistral.ai/).
+  - **GitHub Token (Optional)**: Recommended for the deployment monitor to check CI status before deploying (`GITHUB_TOKEN`). Generate a [Personal Access Token (Classic)](https://github.com/settings/tokens) with `repo` scope.
+
+> **Note on Docker**: Ensure Docker is running as a systemd service (`docker.service`).
+> Check with: `systemctl status docker`
+> If installed via Snap, the service might be named `snap.docker.dockerd.service`. You may need to edit `scripts/privacy-ai-deploy.service` to match your specific service name if it differs from `docker.service`.
 
 ## Setup Steps
 

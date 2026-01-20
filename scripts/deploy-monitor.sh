@@ -32,6 +32,7 @@ if [ -z "$GITHUB_TOKEN" ]; then
 fi
 
 log "Starting deployment monitor for branch: $BRANCH"
+FIRST_RUN=true
 
 while true; do
     # Fetch latest revisions
@@ -40,8 +41,13 @@ while true; do
     LOCAL=$(git rev-parse HEAD)
     REMOTE=$(git rev-parse "origin/$BRANCH")
 
-    if [ "$LOCAL" != "$REMOTE" ]; then
-        log "New commit detected: $REMOTE"
+    # Deploy if there's a new commit OR if it's the first run (to ensure services are up)
+    if [ "$LOCAL" != "$REMOTE" ] || [ "$FIRST_RUN" = true ]; then
+        if [ "$FIRST_RUN" = true ]; then
+             log "Initial run: Checking status for $REMOTE..."
+        else
+             log "New commit detected: $REMOTE"
+        fi
 
         SHOULD_DEPLOY=true
 
@@ -86,8 +92,19 @@ while true; do
         if [ "$SHOULD_DEPLOY" = true ]; then
             log "Deploying update..."
             
+            # Capture script hash before update to detect self-change
+            SCRIPT_HASH_BEFORE=$(git -C "$REPO_DIR" hash-object scripts/deploy-monitor.sh)
+
             # Pull changes
             git pull origin "$BRANCH"
+            
+            # Check if this script changed
+            SCRIPT_HASH_AFTER=$(git -C "$REPO_DIR" hash-object scripts/deploy-monitor.sh)
+
+            if [ "$SCRIPT_HASH_BEFORE" != "$SCRIPT_HASH_AFTER" ]; then
+                 log "Self-update detected. Exiting to allow systemd to restart with new code."
+                 exit 0
+            fi
             
             # Reload env vars just in case .env changed (though docker compose reads file directly)
             # Rebuild and restart services
@@ -95,6 +112,8 @@ while true; do
             
             log "Deployment complete."
         fi
+        
+        FIRST_RUN=false
     fi
 
     sleep "$CHECK_INTERVAL"
