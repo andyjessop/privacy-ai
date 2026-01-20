@@ -19,7 +19,7 @@ import {
   QueryVectorsRequestSchema,
   UpsertVectorsRequestSchema,
   type VectorMatch,
-} from "@ai-api/vector-types";
+} from "../../../packages/vector-types/src/index";
 import { zValidator } from "@hono/zod-validator";
 
 // ... (initDb call commented out)
