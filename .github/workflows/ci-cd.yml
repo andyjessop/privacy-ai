@@ -58,22 +58,3 @@ jobs:
           # Ensure vectors tests use small dimension if needed
           VECTOR_DIMENSION: 1536
         run: bun test
-
-  deploy:
-    name: Deploy to Proxmox (Local)
-    needs: test
-    if: github.ref == 'refs/heads/main'
-    runs-on: self-hosted
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Deploy
-        run: |
-            # Fail on error
-            set -e
-
-            # Rebuild and restart services locally
-            # Assumes the runner is in the deployment environment or has docker access
-            docker compose up -d --build --remove-orphans

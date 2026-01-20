@@ -1,0 +1,18 @@
+[Unit]
+Description=Privacy AI Deployment Monitor
+After=docker.service network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/privacy-ai
+# Environment file for GITHUB_TOKEN and app secrets if needed by the script implicitly
+# The app itself uses .env, but this service needs GITHUB_TOKEN to check API
+EnvironmentFile=/opt/privacy-ai/.env.deploy
+ExecStart=/opt/privacy-ai/scripts/deploy-monitor.sh
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
