@@ -96,7 +96,14 @@ while true; do
             SCRIPT_HASH_BEFORE=$(git -C "$REPO_DIR" hash-object scripts/deploy-monitor.sh)
 
             # Pull changes
-            git pull origin "$BRANCH"
+            if ! git pull origin "$BRANCH"; then
+                error "Failed to pull changes. Please check for local conflicts or stash your changes."
+                if [ "$FIRST_RUN" = true ]; then
+                    FIRST_RUN=false
+                fi
+                sleep "$CHECK_INTERVAL"
+                continue
+            fi
             
             # Check if this script changed
             SCRIPT_HASH_AFTER=$(git -C "$REPO_DIR" hash-object scripts/deploy-monitor.sh)
