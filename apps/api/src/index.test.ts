@@ -7,7 +7,7 @@ describe("API Proxy Service", () => {
 	const originalEnv = process.env;
 
 	// Spy on logger
-	const loggerSpy = mock((_msg: string) => { });
+	const loggerSpy = mock((_msg: string) => {});
 	const originalLoggerInfo = logger.info;
 	const originalLoggerError = logger.error;
 

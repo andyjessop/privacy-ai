@@ -8,7 +8,7 @@
 		"api:start": "bun run --cwd apps/api start",
 		"api:test": "bun run --cwd apps/api test",
 		"lint:all": "biome lint --error-on-warnings .",
-		"format:all": "biome format .",
+		"format:all": "biome format . --write",
 		"test:all": "bun test",
 		"type-check:all": "bun run --filter '*' type-check",
 		"prepare": "husky"
