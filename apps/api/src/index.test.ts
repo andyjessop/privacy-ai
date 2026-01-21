@@ -7,7 +7,7 @@ describe("API Proxy Service", () => {
 	const originalEnv = process.env;
 
 	// Spy on logger
-	const loggerSpy = mock((msg: string) => {});
+	const loggerSpy = mock((_msg: string) => { });
 	const originalLoggerInfo = logger.info;
 	const originalLoggerError = logger.error;
 
@@ -101,7 +101,7 @@ describe("API Proxy Service", () => {
 		const reqBody = JSON.parse(call[1].body);
 		expect(reqBody.model).toBe(payload.model);
 		expect(reqBody.temperature).toBe(0.7);
-		expect(call[1].headers["Authorization"]).toBe("Bearer test-key");
+		expect(call[1].headers.Authorization).toBe("Bearer test-key");
 	});
 
 	test("POST /v1/chat/completions should pass Tools and Tool Choice", async () => {
