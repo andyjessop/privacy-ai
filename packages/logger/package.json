@@ -1,5 +1,8 @@
 {
 	"name": "@ai-api/logger",
 	"type": "module",
-	"main": "src/index.ts"
+	"main": "src/index.ts",
+	"scripts": {
+		"type-check": "tsc --noEmit"
+	}
 }

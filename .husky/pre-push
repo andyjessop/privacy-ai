@@ -1,0 +1,4 @@
+bun run lint:all
+bun run format:all
+bun run type-check:all
+bun run test:all

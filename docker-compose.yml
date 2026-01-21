@@ -27,22 +27,6 @@ services:
     networks:
       - app_network
 
-  vector:
-    build:
-      context: .
-      dockerfile: apps/vector/Dockerfile
-    restart: always
-    environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-ai_api_prod}
-      PORT: 3001
-      VECTOR_DIMENSION: ${VECTOR_DIMENSION:-1536}
-    ports:
-      - "3001:3001"
-    depends_on:
-      - postgres
-    networks:
-      - app_network
-
   open-web-ui:
     image: ghcr.io/open-webui/open-webui:main
     restart: always
