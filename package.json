@@ -3,21 +3,21 @@
 	"license": "ISC",
 	"type": "module",
 	"scripts": {
-		"lint": "bun run --cwd apps/api lint && bun run --cwd apps/vector lint",
-		"format": "bun run --cwd apps/api format && bun run --cwd apps/vector format",
-		"api:build": "bun run --cwd apps/api build",
+		"api:format": "bun run --cwd apps/api format",
 		"api:lint": "bun run --cwd apps/api lint",
 		"api:start": "bun run --cwd apps/api start",
 		"api:test": "bun run --cwd apps/api test",
-		"vector:build": "bun run --cwd apps/vector build",
-		"vector:lint": "bun run --cwd apps/vector lint",
-		"vector:start": "bun run --cwd apps/vector start",
-		"vector:test": "bun run --cwd apps/vector test"
+		"lint:all": "biome lint --error-on-warnings .",
+		"format:all": "biome format . --write",
+		"test:all": "bun test",
+		"type-check:all": "bun run --filter '*' type-check",
+		"prepare": "husky"
 	},
 	"devDependencies": {
 		"@types/bun": "^1.1.5",
 		"@types/node": "^20.12.14",
-		"bun-types": "latest"
+		"bun-types": "latest",
+		"husky": "^9.1.7"
 	},
 	"dependencies": {
 		"@ai-sdk/mistral": "^1.1.0",
