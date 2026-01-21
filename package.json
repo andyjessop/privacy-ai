@@ -7,7 +7,7 @@
 		"api:lint": "bun run --cwd apps/api lint",
 		"api:start": "bun run --cwd apps/api start",
 		"api:test": "bun run --cwd apps/api test",
-		"lint:all": "biome lint .",
+		"lint:all": "biome lint --error-on-warnings .",
 		"format:all": "biome format .",
 		"test:all": "bun test",
 		"type-check:all": "bun run --filter '*' type-check",
