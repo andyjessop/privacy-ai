@@ -35,6 +35,13 @@ log "Starting deployment monitor for branch: $BRANCH"
 FIRST_RUN=true
 
 while true; do
+    # Ensure we are on the correct branch
+    current_branch=$(git rev-parse --abbrev-ref HEAD)
+    if [ "$current_branch" != "$BRANCH" ]; then
+        log "Switching from $current_branch to $BRANCH..."
+        git checkout "$BRANCH" || { error "Failed to checkout $BRANCH"; exit 1; }
+    fi
+
     # Fetch latest revisions
     git fetch origin "$BRANCH" > /dev/null 2>&1
 
@@ -62,18 +69,10 @@ while true; do
             
             log "Checking CI status for $REPO_SLUG @ $REMOTE..."
             
-            # Get combined status (checks)
+            # Get combined status (check-runs)
+            # Note: This checks the status of the commit that is presently on the remote (REMOTE hash)
             STATUS_JSON=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
                 "https://api.github.com/repos/$REPO_SLUG/commits/$REMOTE/check-runs")
-            
-            # Simple check: verify if any check allows us to proceed? 
-            # Actually, typically we check commit status or check-suites. 
-            # For simplicity, let's use the 'commits/:ref/status' endpoint (classic) or just proceed if user trusts main.
-            # Using 'commits/:ref/check-runs' gives detailed action runs.
-            
-            # Let's check 'conclusion' of the latest run for the workflow 'CI/CD' or generally if it's 'success'.
-            # Parsing complex JSON in bash is brittle. 
-            # A robust way is to check if there are any 'in_progress' or 'failure' states.
             
             FAILURES=$(echo "$STATUS_JSON" | grep -o '"conclusion": "[^"]*"' | grep -v 'success' | grep -v 'neutral' | grep -v 'skipped' || true)
             IN_PROGRESS=$(echo "$STATUS_JSON" | grep -o '"status": "[^"]*"' | grep -v 'completed' || true)
@@ -95,9 +94,9 @@ while true; do
             # Capture script hash before update to detect self-change
             SCRIPT_HASH_BEFORE=$(git -C "$REPO_DIR" hash-object scripts/deploy-monitor.sh)
 
-            # Pull changes
-            if ! git pull origin "$BRANCH"; then
-                error "Failed to pull changes. Please check for local conflicts or stash your changes."
+            # Reset hard to match origin (avoids divergent branch issues)
+            if ! git reset --hard "origin/$BRANCH"; then
+                error "Failed to reset to origin/$BRANCH."
                 if [ "$FIRST_RUN" = true ]; then
                     FIRST_RUN=false
                 fi
